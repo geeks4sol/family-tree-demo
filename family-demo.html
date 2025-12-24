@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Tree Demo - D3.js</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe4e1 100%);
+            overflow: hidden;
+        }
+
+        #tree-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .node-group {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .node-group:hover {
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+        }
+
+        .node-card {
+            fill: white;
+            stroke: #ddd;
+            stroke-width: 2;
+            rx: 8;
+        }
+
+        .node-card.male {
+            fill: #3b82f6;
+        }
+
+        .node-card.female {
+            fill: #ec4899;
+        }
+
+        .node-card.you {
+            fill: #f97316;
+            stroke: #ea580c;
+            stroke-width: 3;
+        }
+
+        .node-card.claimed {
+            stroke: #22c55e;
+            stroke-width: 3;
+        }
+
+        .node-name {
+            fill: white;
+            font-size: 14px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+
+        .node-name-en {
+            fill: rgba(255, 255, 255, 0.9);
+            font-size: 11px;
+            text-anchor: middle;
+        }
+
+        .node-relation {
+            fill: rgba(255, 255, 255, 0.85);
+            font-size: 10px;
+            text-anchor: middle;
+        }
+
+        .node-badge {
+            fill: #22c55e;
+            font-size: 9px;
+            fill: white;
+            font-weight: bold;
+        }
+
+        .link-parent {
+            fill: none;
+            stroke: #64748b;
+            stroke-width: 2;
+            marker-end: url(#arrow);
+        }
+
+        .link-spouse {
+            fill: none;
+            stroke: #ff6b6b;
+            stroke-width: 2.5;
+            stroke-dasharray: 5, 5;
+        }
+
+        .link-highlight {
+            stroke-width: 4;
+            stroke: #f97316;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-width: 300px;
+            z-index: 100;
+        }
+
+        #info-panel h2 {
+            margin: 0 0 10px 0;
+            color: #1f2937;
+            font-size: 18px;
+        }
+
+        #info-panel .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 13px;
+            color: #4b5563;
+        }
+
+        #info-panel .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+
+        #action-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            min-width: 280px;
+            display: none;
+            z-index: 100;
+        }
+
+        #action-panel.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        #action-panel h3 {
+            margin: 0 0 5px 0;
+            color: #1f2937;
+            font-size: 16px;
+        }
+
+        #action-panel .subtitle {
+            color: #6b7280;
+            font-size: 12px;
+            margin-bottom: 15px;
+        }
+
+        #action-panel button {
+            width: 100%;
+            padding: 10px;
+            margin: 6px 0;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: white;
+        }
+
+        #action-panel button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-view {
+            background: #3b82f6;
+        }
+
+        .btn-edit {
+            background: #f97316;
+        }
+
+        .btn-descendants {
+            background: #22c55e;
+        }
+
+        .btn-ancestors {
+            background: #8b5cf6;
+        }
+
+        .btn-calculate {
+            background: #eab308;
+        }
+
+        .btn-media {
+            background: #ec4899;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 5px;
+            width: auto !important;
+        }
+
+        .close-btn:hover {
+            color: #4b5563;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        #controls button {
+            padding: 8px 16px;
+            border: none;
+            background: #f3f4f6;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            transition: all 0.2s;
+        }
+
+        #controls button:hover {
+            background: #e5e7eb;
+        }
+
+        #controls button:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="tree-container"></div>
+
+    <div id="info-panel">
+        <h2>Family Tree Demo</h2>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #3b82f6;"></div>
+            <span>Male</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ec4899;"></div>
+            <span>Female</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #f97316; border: 2px solid #ea580c;"></div>
+            <span>You (current user)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: white; border: 2px solid #22c55e;"></div>
+            <span>Claimed profile</span>
+        </div>
+        <div
+            style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
+            <strong>Try:</strong> Click any person • Pinch to zoom • Drag to pan
+        </div>
+    </div>
+
+    <div id="action-panel">
+        <button class="close-btn" onclick="closeActionPanel()">✕</button>
+        <h3 id="selected-name"></h3>
+        <div class="subtitle" id="selected-relation"></div>
+        <button class="btn-view" onclick="handleAction('View Profile')">👤 View Profile</button>
+        <button class="btn-edit" onclick="handleAction('Edit Relations')">🔗 Edit Relations</button>
+        <button class="btn-descendants" onclick="handleAction('Show Descendants')">⬇️ Show Descendants</button>
+        <button class="btn-ancestors" onclick="handleAction('Show Ancestors')">⬆️ Show Ancestors</button>
+        <button class="btn-calculate" onclick="handleAction('Calculate Relationship')">🧮 Calculate
+            Relationship</button>
+        <button class="btn-media" onclick="handleAction('Add Media')">📷 Add Media</button>
+    </div>
+
+    <div id="controls">
+        <button onclick="resetZoom()">🔍 Reset View</button>
+        <button onclick="zoomIn()">➕ Zoom In</button>
+        <button onclick="zoomOut()">➖ Zoom Out</button>
+    </div>
+
+    <script>
+        // Family data structure
+        const familyData = {
+            nodes: [
+                // Generation 1 - Grandparents
+                { id: 'gf1', name: '王大明', nameEn: 'Wang Daming', relation: 'Grandfather', gender: 'male', generation: 1, claimed: true, x: 100, y: 0 },
+                { id: 'gm1', name: '李秀英', nameEn: 'Li Xiuying', relation: 'Grandmother', gender: 'female', generation: 1, claimed: true, x: 250, y: 0 },
+                { id: 'gf2', name: '陈建国', nameEn: 'Chen Jianguo', relation: 'Grandfather', gender: 'male', generation: 1, claimed: false, x: 500, y: 0 },
+                { id: 'gm2', name: '张美玲', nameEn: 'Zhang Meiling', relation: 'Grandmother', gender: 'female', generation: 1, claimed: true, x: 650, y: 0 },
+
+                // Generation 2 - Parents
+                { id: 'uncle1', name: '王建军', nameEn: 'Wang Jianjun', relation: 'Uncle', gender: 'male', generation: 2, claimed: false, x: 50, y: 180 },
+                { id: 'f1', name: '王建华', nameEn: 'Wang Jianhua', relation: 'Father', gender: 'male', generation: 2, claimed: true, x: 200, y: 180 },
+                { id: 'm1', name: '陈丽娜', nameEn: 'Chen Lina', relation: 'Mother', gender: 'female', generation: 2, claimed: true, x: 400, y: 180 },
+                { id: 'aunt1', name: '陈丽华', nameEn: 'Chen Lihua', relation: 'Aunt', gender: 'female', generation: 2, claimed: true, x: 600, y: 180 },
+
+                // Generation 3 - You and siblings
+                { id: 'sibling1', name: '王小红', nameEn: 'Wang Xiaohong', relation: 'Sister', gender: 'female', generation: 3, claimed: true, x: 150, y: 360 },
+                { id: 'you', name: '王小明', nameEn: 'Wang Xiaoming', relation: 'You', gender: 'male', generation: 3, claimed: true, isYou: true, x: 300, y: 360 },
+                { id: 'spouse', name: '李雅婷', nameEn: 'Li Yating', relation: 'Spouse', gender: 'female', generation: 3, claimed: true, x: 450, y: 360 },
+                { id: 'cousin1', name: '陈小龙', nameEn: 'Chen Xiaolong', relation: 'Cousin', gender: 'male', generation: 3, claimed: false, x: 600, y: 360 },
+
+                // Generation 4 - Children
+                { id: 'child1', name: '王浩然', nameEn: 'Wang Haoran', relation: 'Son', gender: 'male', generation: 4, claimed: false, x: 340, y: 540 },
+                { id: 'child2', name: '王欣怡', nameEn: 'Wang Xinyi', relation: 'Daughter', gender: 'female', generation: 4, claimed: false, x: 480, y: 540 },
+            ],
+            links: [
+                // Marriages
+                { source: 'gf1', target: 'gm1', type: 'spouse' },
+                { source: 'gf2', target: 'gm2', type: 'spouse' },
+                { source: 'f1', target: 'm1', type: 'spouse' },
+                { source: 'you', target: 'spouse', type: 'spouse' },
+
+                // Parent-child
+                { source: 'gf1', target: 'uncle1', type: 'parent' },
+                { source: 'gf1', target: 'f1', type: 'parent' },
+                { source: 'gf2', target: 'm1', type: 'parent' },
+                { source: 'gf2', target: 'aunt1', type: 'parent' },
+                { source: 'f1', target: 'sibling1', type: 'parent' },
+                { source: 'f1', target: 'you', type: 'parent' },
+                { source: 'aunt1', target: 'cousin1', type: 'parent' },
+                { source: 'you', target: 'child1', type: 'parent' },
+                { source: 'you', target: 'child2', type: 'parent' },
+            ]
+        };
+
+        // Setup SVG
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        const svg = d3.select('#tree-container')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height);
+
+        // Define arrow marker
+        svg.append('defs').append('marker')
+            .attr('id', 'arrow')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 8)
+            .attr('refY', 0)
+            .attr('markerWidth', 6)
+            .attr('markerHeight', 6)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', '#64748b');
+
+        const g = svg.append('g');
+
+        // Zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.3, 3])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            });
+
+        svg.call(zoom);
+
+        // Draw links
+        const links = g.selectAll('.link')
+            .data(familyData.links)
+            .enter()
+            .append('path')
+            .attr('class', d => d.type === 'spouse' ? 'link-spouse' : 'link-parent')
+            .attr('d', d => {
+                const source = familyData.nodes.find(n => n.id === d.source);
+                const target = familyData.nodes.find(n => n.id === d.target);
+
+                if (d.type === 'spouse') {
+                    return `M ${source.x + 70} ${source.y + 40} L ${target.x + 70} ${target.y + 40}`;
+                } else {
+                    return `M ${source.x + 70} ${source.y + 80} L ${target.x + 70} ${target.y}`;
+                }
+            });
+
+        // Draw nodes
+        const nodes = g.selectAll('.node-group')
+            .data(familyData.nodes)
+            .enter()
+            .append('g')
+            .attr('class', 'node-group')
+            .attr('transform', d => `translate(${d.x}, ${d.y})`)
+            .on('click', (event, d) => {
+                event.stopPropagation();
+                showActionPanel(d);
+            });
+
+        // Node card
+        nodes.append('rect')
+            .attr('class', d => {
+                let classes = `node-card ${d.gender}`;
+                if (d.isYou) classes += ' you';
+                if (d.claimed) classes += ' claimed';
+                return classes;
+            })
+            .attr('width', 140)
+            .attr('height', 80)
+            .attr('rx', 8);
+
+        // Avatar circle
+        nodes.append('circle')
+            .attr('cx', 25)
+            .attr('cy', 25)
+            .attr('r', 15)
+            .attr('fill', 'rgba(255,255,255,0.9)');
+
+        // Gender emoji
+        nodes.append('text')
+            .attr('x', 25)
+            .attr('y', 30)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '18px')
+            .text(d => d.gender === 'male' ? '👨' : '👩');
+
+        // Name (Chinese)
+        nodes.append('text')
+            .attr('class', 'node-name')
+            .attr('x', 70)
+            .attr('y', 20)
+            .text(d => d.name);
+
+        // Name (English)
+        nodes.append('text')
+            .attr('class', 'node-name-en')
+            .attr('x', 70)
+            .attr('y', 35)
+            .text(d => d.nameEn);
+
+        // Relation
+        nodes.append('text')
+            .attr('class', 'node-relation')
+            .attr('x', 70)
+            .attr('y', 55)
+            .text(d => d.relation);
+
+        // Claimed badge
+        nodes.filter(d => d.claimed)
+            .append('rect')
+            .attr('x', 5)
+            .attr('y', 60)
+            .attr('width', 50)
+            .attr('height', 15)
+            .attr('rx', 3)
+            .attr('fill', '#22c55e');
+
+        nodes.filter(d => d.claimed)
+            .append('text')
+            .attr('class', 'node-badge')
+            .attr('x', 30)
+            .attr('y', 71)
+            .attr('text-anchor', 'middle')
+            .text('✓ Claimed');
+
+        // Generation badge
+        nodes.append('rect')
+            .attr('x', d => d.claimed ? 60 : 5)
+            .attr('y', 60)
+            .attr('width', 30)
+            .attr('height', 15)
+            .attr('rx', 3)
+            .attr('fill', 'rgba(255,255,255,0.3)');
+
+        nodes.append('text')
+            .attr('class', 'node-badge')
+            .attr('x', d => d.claimed ? 75 : 20)
+            .attr('y', 71)
+            .attr('text-anchor', 'middle')
+            .text(d => `G${d.generation}`);
+
+        // Initial zoom to fit content
+        const bounds = g.node().getBBox();
+        const scale = 0.8 / Math.max(bounds.width / width, bounds.height / height);
+        const translate = [
+            width / 2 - scale * (bounds.x + bounds.width / 2),
+            height / 2 - scale * (bounds.y + bounds.height / 2)
+        ];
+
+        svg.transition().duration(750).call(
+            zoom.transform,
+            d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+        );
+
+        // Action panel functions
+        let selectedNode = null;
+
+        function showActionPanel(node) {
+            selectedNode = node;
+            document.getElementById('selected-name').textContent = `${node.name} (${node.nameEn})`;
+            document.getElementById('selected-relation').textContent = node.relation;
+            document.getElementById('action-panel').classList.add('show');
+        }
+
+        function closeActionPanel() {
+            document.getElementById('action-panel').classList.remove('show');
+            selectedNode = null;
+        }
+
+        function handleAction(action) {
+            alert(`Action: ${action}\nFor: ${selectedNode.name} (${selectedNode.nameEn})\nRelation: ${selectedNode.relation}`);
+            closeActionPanel();
+        }
+
+        // Control functions
+        function resetZoom() {
+            const bounds = g.node().getBBox();
+            const scale = 0.8 / Math.max(bounds.width / width, bounds.height / height);
+            const translate = [
+                width / 2 - scale * (bounds.x + bounds.width / 2),
+                height / 2 - scale * (bounds.y + bounds.height / 2)
+            ];
+            svg.transition().duration(750).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+            );
+        }
+
+        function zoomIn() {
+            svg.transition().duration(300).call(zoom.scaleBy, 1.3);
+        }
+
+        function zoomOut() {
+            svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+        }
+
+        // Close action panel when clicking outside
+        svg.on('click', closeActionPanel);
+    </script>
+</body>
+
+</html>
